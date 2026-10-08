@@ -1,0 +1,27 @@
+name = "anniversary-downloads"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./public"
+# Worker handles API/download/admin routes; everything else is served as static files
+run_worker_first = ["/api/*", "/d/*", "/admin/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "anniversary-downloads"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "anniversary-recordings"
+
+[vars]
+SITE_NAME = "Group Anniversary Recordings"
+DOWNLOAD_LIMIT = "20"                         # total downloads per code
+FROM_EMAIL = "you@gmail.com"                  # the sender address you verify in Brevo
+FROM_NAME = "Anniversary Recordings"
+ADMIN_EMAIL = "you@gmail.com"                 # where code requests are sent for approval
+SITE_URL = "https://YOUR-GITHUB-USERNAME.github.io/YOUR-REPO"   # link shown in emails
+ALLOWED_ORIGIN = "https://YOUR-GITHUB-USERNAME.github.io"        # origin only, no path, no trailing slash

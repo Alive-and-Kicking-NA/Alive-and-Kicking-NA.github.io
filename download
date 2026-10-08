@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+codes.csv
+seed.sql
+audio/
+attendees.csv

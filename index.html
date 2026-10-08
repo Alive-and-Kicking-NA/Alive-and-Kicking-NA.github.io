@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Anniversary Recordings</title>
+<style>
+  :root { --bg:#f6f4ef; --fg:#1f2937; --muted:#6b7280; --card:#fff; --line:#e5e1d8; --accent:#2f5d50; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181a; --fg:#e8e6e1; --muted:#9aa0a6; --card:#1f2225; --line:#33373b; --accent:#7fb8a4; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,sans-serif; }
+  main { max-width:620px; margin:0 auto; padding:40px 16px 80px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 28px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:20px; }
+  label { display:block; font-weight:600; margin-bottom:6px; }
+  input { width:100%; padding:12px; font:inherit; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
+  input.code { font-family:ui-monospace,monospace; letter-spacing:.12em; text-transform:uppercase; }
+  button { font:inherit; font-weight:600; padding:11px 18px; border:0; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; }
+  @media (prefers-color-scheme: dark) { button { color:#10201b; } }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:10px; margin-top:12px; }
+  .msg { margin-top:12px; font-size:15px; }
+  .err { color:#b42318; } @media (prefers-color-scheme: dark) { .err { color:#ff8a80; } }
+  .ok { color:var(--accent); }
+  .rec { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 0; border-top:1px solid var(--line); }
+  .rec:first-of-type { border-top:0; }
+  .rec .t { font-weight:600; } .rec .s { color:var(--muted); font-size:14px; }
+  .left { font-size:15px; color:var(--muted); margin-bottom:8px; }
+  .left b { color:var(--fg); }
+  a.link { color:var(--accent); cursor:pointer; text-decoration:underline; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Anniversary Recordings</h1>
+  <p class="sub">Enter the code from your email to download the speaker recordings.</p>
+
+  <section id="login" class="card">
+    <label for="code">Your download code</label>
+    <input id="code" class="code" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <div class="row"><button id="go">Unlock</button></div>
+    <div id="loginMsg" class="msg err"></div>
+  </section>
+
+  <section id="list" class="card hidden">
+    <div class="left">Downloads remaining: <b id="left">0</b></div>
+    <div id="recs"></div>
+    <div id="listMsg" class="msg err"></div>
+  </section>
+
+  <section class="card">
+    <label for="email">Out of downloads, or lost your code?</label>
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email">
+    <div class="row"><button id="req">Request a new code</button></div>
+    <div id="reqMsg" class="msg"></div>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script>
+const API = (window.API_BASE || '').replace(/\/$/, '');
+const $ = (id) => document.getElementById(id);
+let code = '';
+const fmtSize = (n) => n ? (n / 1048576).toFixed(1) + ' MB' : '';
+
+async function post(path, body) {
+  const r = await fetch(API + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let data = {}; try { data = await r.json(); } catch {}
+  return { ok: r.ok, status: r.status, data };
+}
+
+function render(data) {
+  $('left').textContent = data.downloads_left;
+  const box = $('recs'); box.innerHTML = '';
+  for (const r of data.recordings) {
+    const row = document.createElement('div'); row.className = 'rec';
+    const info = document.createElement('div');
+    const t = document.createElement('div'); t.className = 't'; t.textContent = r.title;
+    const s = document.createElement('div'); s.className = 's'; s.textContent = [r.speaker, fmtSize(r.size)].filter(Boolean).join(' · ');
+    info.append(t, s);
+    const b = document.createElement('button'); b.textContent = 'Download';
+    b.disabled = data.downloads_left <= 0;
+    b.onclick = () => getFile(r.slug, b);
+    row.append(info, b); box.append(row);
+  }
+}
+
+async function unlock() {
+  $('loginMsg').textContent = '';
+  code = $('code').value;
+  $('go').disabled = true;
+  const { ok, data } = await post('/api/session', { code });
+  $('go').disabled = false;
+  if (!ok) { $('loginMsg').textContent = data.error || 'Something went wrong.'; return; }
+  $('login').classList.add('hidden'); $('list').classList.remove('hidden');
+  render(data);
+}
+
+async function getFile(slug, btn) {
+  $('listMsg').textContent = '';
+  btn.disabled = true;
+  const { ok, data } = await post('/api/ticket', { code, slug });
+  if (!ok) {
+    $('listMsg').textContent = data.error || 'Something went wrong.';
+    if (typeof data.downloads_left === 'number') $('left').textContent = data.downloads_left;
+    await refresh(); return;
+  }
+  $('left').textContent = data.downloads_left;
+  window.location.href = API + data.url;       // browser downloads via attachment header
+  setTimeout(refresh, 800);
+}
+
+async function refresh() {
+  const { ok, data } = await post('/api/session', { code });
+  if (ok) render(data);
+}
+
+$('go').onclick = unlock;
+$('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') unlock(); });
+$('req').onclick = async () => {
+  const m = $('reqMsg'); m.textContent = ''; m.className = 'msg';
+  $('req').disabled = true;
+  const { ok, data } = await post('/api/request', { email: $('email').value });
+  $('req').disabled = false;
+  m.className = 'msg ' + (ok ? 'ok' : 'err');
+  m.textContent = ok ? data.message : (data.error || 'Something went wrong.');
+};
+</script>
+</body>
+</html>
